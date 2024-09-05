@@ -6,6 +6,9 @@ from langchain.schema import HumanMessage
 from langchain.agents import AgentType, initialize_agent, load_tools
 from langchain.callbacks import StreamlitCallbackHandler
 
+from langchain.memory import ConversationBufferMemory
+from langchain.prompts import MessagesPlaceholder
+
 
 
 load_dotenv()
@@ -18,12 +21,34 @@ def create_agent_chain():
         streaming=True,
         
     )
+    
+    # OpenAI Functions AgentのプロンプトにMemoryの会話履歴を追加するための設定
+    agent_kwargs = {
+        "extra_prompt_messages": [MessagesPlaceholder(variable_name="memory")],
+        
+    }
+    # OpenAI Functions Agentが使える設定でMemoryを初期化
+    memory = ConversationBufferMemory(memory_key="memory", return_Messages=True)
+    
     #ツールの選択
     tools = load_tools(["ddg-search", "wikipedia"])
-    return initialize_agent(tools, chat, agent=AgentType.OPENAI_FUNCTIONS) #初期化
+    return initialize_agent(
+        tools, 
+        chat, 
+        agent = AgentType.OPENAI_FUNCTIONS,
+        
+        #以下追記
+        agent_kwargs = agent_kwargs,
+        memory = memory,
+        ) #初期化
+
 
 import streamlit as st
 st.title("langchain-streamlit-app")
+
+if "agent_chain" not in st.session_state:
+    st.session_state.agent_chain = create_agent_chain()
+
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -62,8 +87,9 @@ if prompt:
     with st.chat_message("assistant"):
         #ストリーミング応答の表示
         callback = StreamlitCallbackHandler(st.container())
-        agent_chain = create_agent_chain()
-        response = agent_chain.run(prompt, callbacks=[callback])
+        
+        #agent_chain = create_agent_chain()
+        response = st.session_state.agent_chain.run(prompt, callbacks=[callback])
         st.markdown(response)
         
         
